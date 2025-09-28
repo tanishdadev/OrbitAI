@@ -14,37 +14,59 @@ export default function CommandPrompt({ onSubmit, isProcessing }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-4xl">
-      <div className="flex gap-2">
-        <textarea
-          value={command}
-          onChange={(e) => setCommand(e.target.value)}
-          placeholder="Type a command (e.g., 'Schedule a meeting', 'Draft an email to john@example.com about project update')"
-          className="flex-1 p-4 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          rows={3}
-          disabled={isProcessing}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              handleSubmit(e)
-            }
-          }}
-        />
-        <button
-          type="submit"
-          disabled={isProcessing}
-          className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-            isProcessing 
-              ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-              : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg transform hover:scale-105'
-          }`}
-        >
-          {isProcessing ? 'Processing...' : 'Send'}
-        </button>
+    <form onSubmit={handleSubmit} className="w-full">
+      <div className="flex gap-3 items-end">
+        <div className="flex-1 relative">
+          <textarea
+            value={command}
+            onChange={(e) => setCommand(e.target.value)}
+            placeholder="Type your message here... (e.g., 'Send email to john@example.com', 'Schedule meeting tomorrow')"
+            className="w-full p-4 pr-12 border-0 bg-gray-50 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all duration-200 placeholder-gray-500"
+            rows={1}
+            disabled={isProcessing}
+            style={{ minHeight: '52px', maxHeight: '120px' }}
+            onInput={(e) => {
+              e.target.style.height = 'auto'
+              e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSubmit(e)
+              }
+            }}
+          />
+          
+          {/* Send Button - positioned inside textarea */}
+          <button
+            type="submit"
+            disabled={!command.trim() || isProcessing}
+            className={`absolute right-3 bottom-3 w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${
+              !command.trim() || isProcessing
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
+            }`}
+          >
+            {isProcessing ? (
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
-      <p className="text-xs text-gray-500 mt-2">
-        Press Enter to send, Shift+Enter for new line
-      </p>
+      
+      <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+        <span>Press Enter to send, Shift+Enter for new line</span>
+        {isProcessing && (
+          <span className="flex items-center gap-1">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+            Processing...
+          </span>
+        )}
+      </div>
     </form>
   )
 }
