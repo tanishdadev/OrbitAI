@@ -6,8 +6,8 @@ import ClientSessionProvider from "./components/ClientSessionProvider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-	title: "AI Assistant",
-	description: "Your personal AI assistant with Google integration",
+	title: "Orbit AI",
+	description: "Your personal AI to automate and streamline workflows for 10x productivity",
 };
 
 export default function RootLayout({ children }) {

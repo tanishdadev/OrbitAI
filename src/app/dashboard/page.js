@@ -189,7 +189,7 @@ export default function Dashboard() {
 									? 'from-gray-100 to-gray-300' 
 									: 'from-gray-900 to-gray-700'
 							}`}>
-								OrbitAI
+								Orbit AI
 							</h1>
 						</div>
 						
@@ -261,17 +261,12 @@ export default function Dashboard() {
 				{/* Welcome Section - Only show when no messages */}
 				{responses.length === 0 && (
 					<div className="text-center mb-12">
-						<div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl mb-6">
-							<svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-							</svg>
-						</div>
-						<h2 className={`text-4xl font-bold mb-3 ${
+						<h2 className={`text-4xl font-bold mb-8 ${
 							darkMode ? 'text-gray-100' : 'text-gray-900'
 						}`}>
 							Welcome back, {session.user?.name?.split(' ')[0] || 'User'}!
 						</h2>
-						<p className={`text-lg mb-8 max-w-2xl mx-auto ${
+						<p className={`text-lg mb-12 max-w-2xl mx-auto ${
 							darkMode ? 'text-gray-300' : 'text-gray-600'
 						}`}>
 							Your intelligent assistant is ready to help with emails, calendar scheduling, and more. Just type what you need!

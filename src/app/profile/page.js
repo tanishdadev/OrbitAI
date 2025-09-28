@@ -1,4 +1,4 @@
-import { auth, signIn } from "../../../lib/auth.js";
+import { auth, signIn } from "@auth";
 
 export default function SignIn() {
 	return (
