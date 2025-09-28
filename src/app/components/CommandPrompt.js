@@ -41,7 +41,6 @@ export default function CommandPrompt({ onSubmit, isProcessing, darkMode }) {
             }}
           />
           
-          {/* Send Button - positioned inside textarea */}
           <button
             type="submit"
             disabled={!command.trim() || isProcessing}

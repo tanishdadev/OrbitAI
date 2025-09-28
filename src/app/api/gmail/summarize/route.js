@@ -9,17 +9,13 @@ const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 export async function GET(request) {
   try {
     console.log('Gmail summarize route called')
-    
-    // Check for authorization header first (when called from api/ai)
     const authHeader = request.headers.get('Authorization')
     let accessToken = null
     
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      // Called from another API route with token in header
       accessToken = authHeader.replace('Bearer ', '')
       console.log('Using access token from Authorization header')
     } else {
-      // Called directly, try to get session
       const token = await getToken({ 
         req: request, 
         secret: process.env.NEXTAUTH_SECRET,
@@ -44,8 +40,6 @@ export async function GET(request) {
 
     console.log('Access token found, initializing Gmail client')
     const { gmail } = getGoogleClient(accessToken)
-
-    // Fetch only unread emails from Primary inbox
     const response = await gmail.users.messages.list({
       userId: 'me',
       maxResults: 15,

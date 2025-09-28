@@ -25,20 +25,18 @@ export default function Dashboard() {
 		if (status === "unauthenticated") {
 			router.push("/");
 		}
-		// Handle token refresh errors
+
 		if (session?.error === "RefreshAccessTokenError") {
 			console.log("Token refresh failed, forcing re-authentication");
 			signOut({ callbackUrl: "/" });
 		}
 	}, [status, session, router]);
 
-	// Load dark mode preference from localStorage
 	useEffect(() => {
 		const savedDarkMode = localStorage.getItem('darkMode') === 'true';
 		setDarkMode(savedDarkMode);
 	}, []);
 
-	// Save dark mode preference and apply classes
 	useEffect(() => {
 		localStorage.setItem('darkMode', darkMode.toString());
 		if (darkMode) {
@@ -85,7 +83,6 @@ export default function Dashboard() {
 		setResponses((prev) => [...prev, userMessage]);
 
 		try {
-			// Check if we have a valid session and access token
 			if (!session?.accessToken) {
 				throw new Error("No access token available. Please sign out and sign back in.");
 			}
@@ -175,7 +172,6 @@ export default function Dashboard() {
 				? 'bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-900' 
 				: 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100'
 		}`}>
-			{/* Modern Header */}
 			<header className={`backdrop-blur-lg border-b sticky top-0 z-10 ${
 				darkMode 
 					? 'bg-gray-800/80 border-gray-700/50' 
@@ -194,7 +190,6 @@ export default function Dashboard() {
 						</div>
 						
 						<div className="flex items-center gap-4">
-							{/* Dark Mode Toggle */}
 							<button
 								onClick={toggleDarkMode}
 								className={`p-2 rounded-lg transition-all duration-200 ${
@@ -205,12 +200,10 @@ export default function Dashboard() {
 								title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
 							>
 								{darkMode ? (
-									// Sun icon for light mode
 									<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
 										<path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
 									</svg>
 								) : (
-									// Moon icon for dark mode
 									<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
 										<path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
 									</svg>
@@ -256,9 +249,7 @@ export default function Dashboard() {
 				</div>
 			</header>
 
-			{/* Main Content */}
 			<main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-				{/* Welcome Section - Only show when no messages */}
 				{responses.length === 0 && (
 					<div className="text-center mb-12">
 						<h2 className={`text-4xl font-bold mb-8 ${
@@ -272,7 +263,6 @@ export default function Dashboard() {
 							Your intelligent assistant is ready to help with emails, calendar scheduling, and more. Just type what you need!
 						</p>
 						
-						{/* Feature Cards */}
 						<div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-12">
 							<div className={`backdrop-blur-sm rounded-2xl p-6 border transition-all duration-200 ${
 								darkMode 
@@ -325,13 +315,11 @@ export default function Dashboard() {
 					</div>
 				)}
 
-				{/* Chat Interface */}
 				<div className={`backdrop-blur-lg rounded-3xl shadow-xl border overflow-hidden ${
 					darkMode 
 						? 'bg-gray-800/70 border-gray-700/50' 
 						: 'bg-white/70 border-white/50'
 				}`}>
-					{/* Chat Messages */}
 					<div className="h-96 overflow-y-auto p-6 space-y-4" style={{ scrollbarWidth: 'thin' }}>
 						{responses.length === 0 ? (
 							<div className={`flex flex-col items-center justify-center h-full ${
@@ -444,7 +432,6 @@ export default function Dashboard() {
 						)}
 					</div>
 
-					{/* Command Input */}
 					<div className={`border-t p-6 ${
 						darkMode 
 							? 'border-gray-700/50 bg-gray-800/50' 
@@ -458,7 +445,6 @@ export default function Dashboard() {
 					</div>
 				</div>
 
-				{/* Quick Actions - ALWAYS VISIBLE */}
 				<div className="mt-8 flex flex-wrap gap-3 justify-center">
 					<button
 						onClick={() => handleCommand("Summarize my unread emails")}

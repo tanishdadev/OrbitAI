@@ -9,8 +9,6 @@ export async function POST(req) {
     }
 
     const { summary, description, startTime, endTime, attendees, timeZone } = await req.json()
-    
-    // Debug logging
     console.log('=== CALENDAR API REQUEST DEBUG ===')
     console.log('Received data:', { summary, description, startTime, endTime, attendees, timeZone })
     console.log('Current server time:', new Date().toISOString())
@@ -30,7 +28,6 @@ export async function POST(req) {
 
     const startDateTime = new Date(startTime)
     const endDateTime = new Date(endTime)
-    
     console.log('Parsed dates:')
     console.log('- Start:', startDateTime.toISOString(), '(Local:', startDateTime.toString(), ')')
     console.log('- End:', endDateTime.toISOString(), '(Local:', endDateTime.toString(), ')')
@@ -41,12 +38,8 @@ export async function POST(req) {
       }, { status: 400 })
     }
 
-    // Get Google client
     const { calendar } = getGoogleClient(accessToken)
-
-    // Use user-provided timezone or fallback to server timezone
     const tz = timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone
-    
     console.log('Final timezone being used:', tz)
 
     const event = {
@@ -127,7 +120,6 @@ export async function POST(req) {
       response: error.response?.data
     })
     
-    // Handle specific Google API errors
     if (error.code === 401 || error.status === 401) {
       return NextResponse.json({ 
         error: 'Authentication failed. Please re-authenticate with Google.' 

@@ -4,7 +4,6 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 
 const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
-// Try Gemini with multiple fallbacks
 async function tryGeminiWithFallbacks(prompt) {
   const availableModels = [
     'gemini-2.5-pro',
@@ -65,7 +64,6 @@ export async function POST(req) {
       }, { status: 400 })
     }
 
-    // Check if we need to generate subject and/or body using AI
     const needsSubject = !subject || subject === 'Message from AI Assistant' || subject.length < 5
     const needsBody = !body || 
                      body.includes('This message was sent via AI Assistant') ||
@@ -124,7 +122,6 @@ Generate the email now:`.trim()
       } catch (aiError) {
         console.error('AI email generation failed:', aiError)
         
-        // Fallback generation based on original command
         if (needsSubject) {
           let topicMatch = originalCommand.match(/about (.+)|regarding (.+)|for (.+)|on (.+)/i)
           if (topicMatch) {
@@ -153,7 +150,6 @@ Best regards`
       }
     }
 
-    // Final fallbacks
     if (!subject) {
       subject = 'Important Message'
     }
@@ -173,7 +169,6 @@ Best regards`
 
     const { gmail } = getGoogleClient(accessToken)
 
-    // Create the email message (plain text)
     const message = [
       'Content-Type: text/plain; charset="UTF-8"',
       'MIME-Version: 1.0',
@@ -182,8 +177,7 @@ Best regards`
       '',
       body
     ].join('\n')
-
-    // Encode the message
+    
     const encodedMessage = Buffer.from(message)
       .toString('base64')
       .replace(/\+/g, '-')

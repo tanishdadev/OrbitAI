@@ -9,14 +9,12 @@ export default function Home() {
 	const { data: session, status } = useSession();
 	const router = useRouter();
 
-	// Redirect logged-in users to dashboard
 	useEffect(() => {
 		if (session) {
 			router.push("/dashboard");
 		}
 	}, [session, router]);
 
-	// Show loading while session is being fetched
 	if (status === "loading") {
 		return (
 			<div className="flex h-screen items-center justify-center bg-white">
@@ -30,7 +28,6 @@ export default function Home() {
 
 	return (
 		<main className="min-h-screen bg-white">
-			{/* Navigation */}
 			<nav className="border-b border-gray-200 bg-white/95 backdrop-blur-sm sticky top-0 z-50">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 					<div className="flex justify-between items-center h-16">
@@ -41,7 +38,6 @@ export default function Home() {
 				</div>
 			</nav>
 
-			{/* Hero Section */}
 			<section className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
 				<div className="max-w-7xl mx-auto">
 					<div className="max-w-4xl mx-auto text-center">
@@ -87,7 +83,6 @@ export default function Home() {
 				</div>
 			</section>
 
-			{/* Features Section */}
 			<section className="py-20 bg-gray-50">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 					<div className="text-center mb-16">
@@ -142,7 +137,6 @@ export default function Home() {
 				</div>
 			</section>
 
-			{/* Tech Stack */}
 			<section className="py-20">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 					<div className="text-center mb-16">
@@ -182,7 +176,6 @@ export default function Home() {
 				</div>
 			</section>
 
-			{/* CTA Section */}
 			<section className="py-20 bg-blue-600">
 				<div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
 					<h2 className="text-3xl font-bold text-white mb-4">
@@ -202,7 +195,6 @@ export default function Home() {
 				</div>
 			</section>
 
-			{/* Footer */}
 			<footer className="bg-white border-t border-gray-200">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 					<div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">

@@ -8,11 +8,9 @@ const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 const getBaseUrl = () =>
   process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
 
-// Simple pattern-based parser as fallback when AI fails
 function parseCommandFallback(command) {
   const lowerCommand = command.toLowerCase()
   
-  // Check for name/identity questions
   if (lowerCommand.includes('what is your name') || lowerCommand.includes("what's your name") || 
       lowerCommand.includes('who are you') || lowerCommand.includes('your name')) {
     return {
@@ -21,7 +19,6 @@ function parseCommandFallback(command) {
     }
   }
   
-  // Enhanced email patterns
   const emailRegex = /[\w.-]+@[\w.-]+\.\w+/
   const emailMatch = command.match(emailRegex)
   
@@ -29,7 +26,6 @@ function parseCommandFallback(command) {
     let subject = null
     let body = null
     
-    // Try to extract subject from various patterns
     const subjectPatterns = [
       /subject[:\s]+([^,\n]+)/i,
       /with subject[:\s]+([^,\n]+)/i,
@@ -54,7 +50,6 @@ function parseCommandFallback(command) {
     }
   }
   
-  // Calendar patterns
   if (lowerCommand.includes('schedule') || lowerCommand.includes('meeting') || lowerCommand.includes('calendar')) {
     return {
       action: 'calendar',
@@ -65,21 +60,17 @@ function parseCommandFallback(command) {
     }
   }
   
-  // Summarize patterns
   if (lowerCommand.includes('summarize') || lowerCommand.includes('summary') || lowerCommand.includes('unread') || 
       lowerCommand.includes('emails') || lowerCommand.includes('check emails')) {
     return { action: 'summarize', data: {} }
   }
   
-  // Default to general
   return { action: 'general', data: { query: command } }
 }
 
-// Simple AI fallback for when Gemini fails
 function generateSimpleResponse(command) {
   const lowerCommand = command.toLowerCase()
-  
-  // Handle identity questions
+
   if (lowerCommand.includes('what is your name') || lowerCommand.includes("what's your name") || 
       lowerCommand.includes('who are you') || lowerCommand.includes('your name')) {
     return 'I am OrbitAI, your intelligent assistant.'
@@ -104,7 +95,6 @@ function generateSimpleResponse(command) {
   return 'I am having trouble connecting to AI services right now. Please try again in a moment.'
 }
 
-// Try Gemini with multiple fallbacks
 async function tryGeminiWithFallbacks(prompt, isParser = false) {
   const availableModels = [
     'gemini-2.5-pro',
@@ -165,13 +155,10 @@ export async function POST(req) {
     const baseUrl = getBaseUrl()
     console.log('Processing command:', command)
 
-    // Get current date/time context for AI
     const now = new Date()
     const currentDateTime = now.toISOString()
     const currentLocalTime = now.toLocaleString('en-IN', { timeZone: 'Asia/Calcutta' })
     const userTimeZone = 'Asia/Calcutta'
-
-    // Parse command - try AI first, fallback to pattern matching
     let parsedCommand
     
     try {
@@ -220,10 +207,7 @@ Be very careful with date parsing:
 User command: "${command}"`
 
       const parseResult = await tryGeminiWithFallbacks(parserPrompt, true)
-      
       console.log('Raw AI response:', parseResult)
-      
-      // Extract JSON from response
       const jsonMatch = parseResult.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         parsedCommand = JSON.parse(jsonMatch[0])
@@ -246,7 +230,6 @@ User command: "${command}"`
       parsedCommand = { action: 'general', data: { query: command } }
     }
 
-    // Handle actions
     switch (parsedCommand.action) {
       case 'email': {
         const data = parsedCommand.data || {}
@@ -361,8 +344,7 @@ User command: "${command}"`
       case 'general':
       default: {
         console.log('Handling general query:', command)
-        
-        // Handle identity questions first
+      
         if (parsedCommand.data?.isIdentityQuestion || 
             command.toLowerCase().includes('what is your name') || 
             command.toLowerCase().includes("what's your name") || 
