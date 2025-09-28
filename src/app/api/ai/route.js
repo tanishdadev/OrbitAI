@@ -3,74 +3,133 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from "../../../../lib/auth";
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
-// pass key string (SDK expects raw string)
 const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
-// helper: pick a base URL for internal API calls
 const getBaseUrl = () =>
   process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
 
-// strict JSON parser system prompt (used to convert natural language -> structured action)
-const PARSER_SYSTEM_PROMPT = `You are a strict command parser. ALWAYS output ONLY valid JSON (no extra text, no markdown, no backticks).
-Output must be a single JSON object with exactly these keys:
-- "action": one of "email", "calendar", "summarize", or "general"
-- "data": an object with fields appropriate for the action
+// Simple pattern-based parser as fallback when AI fails
+function parseCommandFallback(command) {
+  const lowerCommand = command.toLowerCase()
+  
+  // Email patterns
+  const emailRegex = /[\w.-]+@[\w.-]+\.\w+/
+  const emailMatch = command.match(emailRegex)
+  
+  if ((lowerCommand.includes('email') || lowerCommand.includes('send')) && emailMatch) {
+    // Extract subject and body from command
+    let subject = 'Message from AI Assistant'
+    let body = 'Hello, this message was sent via AI Assistant.'
+    
+    if (lowerCommand.includes('about')) {
+      const aboutIndex = lowerCommand.indexOf('about')
+      const afterAbout = command.substring(aboutIndex + 5).trim()
+      subject = `About ${afterAbout}`
+      body = `Hi,\n\nI wanted to reach out about ${afterAbout}.\n\nBest regards`
+    }
+    
+    return {
+      action: 'email',
+      data: {
+        to: emailMatch[0],
+        subject: subject,
+        body: body
+      }
+    }
+  }
+  
+  // Calendar patterns
+  if (lowerCommand.includes('schedule') || lowerCommand.includes('meeting') || lowerCommand.includes('calendar')) {
+    return {
+      action: 'calendar',
+      data: {
+        summary: lowerCommand.includes('meeting') ? 'Team Meeting' : 'Scheduled Event',
+        description: 'Event created via AI Assistant'
+      }
+    }
+  }
+  
+  // Summarize patterns
+  if (lowerCommand.includes('summarize') || lowerCommand.includes('summary') || lowerCommand.includes('unread') || 
+      lowerCommand.includes('emails') || lowerCommand.includes('check emails')) {
+    return { action: 'summarize', data: {} }
+  }
+  
+  // Default to general
+  return { action: 'general', data: { query: command } }
+}
 
-Rules & examples:
-- For email: 
-  { "action": "email", "data": { "to": "email@example.com", "subject": "subject here", "body": "email content" } }
-- For calendar:
-  { "action": "calendar", "data": { "summary": "Meeting title", "description": "Description", "startTime": "ISO datetime", "endTime": "ISO datetime", "attendees": ["a@b.com"] } }
-- For summarize:
-  { "action": "summarize", "data": {} }
-- For general:
-  { "action": "general", "data": { "query": "original user query" } }
+// Simple AI fallback for when Gemini fails
+function generateSimpleResponse(command) {
+  const lowerCommand = command.toLowerCase()
+  
+  if (lowerCommand.includes('weather')) {
+    return 'I apologize, but I cannot access real-time weather data. Please check a weather app or website for current conditions.'
+  }
+  
+  if (lowerCommand.includes('time')) {
+    return `The current time is ${new Date().toLocaleTimeString()}.`
+  }
+  
+  if (lowerCommand.includes('date')) {
+    return `Today's date is ${new Date().toLocaleDateString()}.`
+  }
+  
+  if (lowerCommand.includes('hello') || lowerCommand.includes('hi')) {
+    return 'Hello! How can I help you today? I can assist with emails, calendar events, and general questions.'
+  }
+  
+  return 'I apologize, but I am having trouble connecting to AI services right now. Please try again in a moment, or try a more specific command like "send email to someone@example.com" or "schedule a meeting".'
+}
 
-If fields are missing (for example "to" in email), return the JSON with missing fields as empty strings.
-Do NOT write anything besides the single JSON object.`
+// Try Gemini with multiple fallbacks
+async function tryGeminiWithFallbacks(prompt, isParser = false) {
+  const models = ['gemini-1.5-flash', 'gemini-1.5-pro']
+  
+  for (const model of models) {
+    try {
+      console.log(`Attempting ${model}...`)
+      const geminiModel = gemini.getGenerativeModel({
+        model: model,
+        generationConfig: { 
+          temperature: isParser ? 0.0 : 0.3,
+          topK: 40,
+          topP: 0.95 
+        },
+      })
 
-// system prompt for detailed general replies (no markdown bold)
-const GENERAL_SYSTEM_PROMPT = `You are a helpful, concise but detailed AI assistant. Answer the user's question on-point and thoroughly.
-Do NOT use Markdown (no **, no backticks, no triple backticks). Use plain text. If lists are useful, use simple lines or numbered lists without Markdown symbols.
-Be precise, informative, and use examples when helpful.`
-
-/**
- * askGemini helper
- * @param {string} modelName - Gemini model
- * @param {Array<{role: string, content: string}>} messages - chat history
- * @param {number} temperature - sampling temp
- */
-async function askGemini(modelName, messages, temperature = 0.0) {
-  const model = gemini.getGenerativeModel({
-    model: modelName,
-    generationConfig: { temperature },
-  })
-
-  // Convert messages into history (system/user)
-  const history = messages
-    .filter(m => m.role !== 'system')
-    .map(m => ({
-      role: m.role === 'user' ? 'user' : 'model',
-      parts: [{ text: m.content }],
-    }))
-
-  // Pick last user message for sendMessage
-  const lastUser = messages.findLast(m => m.role === 'user')
-  if (!lastUser) throw new Error('No user message provided')
-
-  const chat = model.startChat({
-    history,
-  })
-
-  const response = await chat.sendMessage(lastUser.content)
-  return response.response.text()
+      const result = await geminiModel.generateContent(prompt)
+      const text = result.response.text()
+      console.log(`${model} succeeded`)
+      return text
+    } catch (error) {
+      console.error(`${model} failed:`, error.status, error.message)
+      
+      // Don't continue if it's an auth error
+      if (error.status === 401 || error.status === 403) {
+        throw new Error('AI service authentication failed. Please check API key.')
+      }
+      
+      // Continue to next model for 503, 429, 500 errors
+      if (error.status === 503 || error.status === 429 || error.status === 500) {
+        console.log(`${model} temporarily unavailable, trying next...`)
+        continue
+      }
+      
+      // For other errors, continue but log them
+      console.log(`${model} failed with ${error.status}, trying next...`)
+      continue
+    }
+  }
+  
+  throw new Error('All AI models are currently unavailable')
 }
 
 export async function POST(req) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session?.accessToken) {
+      return NextResponse.json({ error: 'Unauthorized - Please sign in again' }, { status: 401 })
     }
 
     const { command } = await req.json()
@@ -79,91 +138,63 @@ export async function POST(req) {
     }
 
     const baseUrl = getBaseUrl()
+    console.log('Processing command:', command)
 
-    // --- 1) Parse incoming command into JSON action ---
-    let rawParse = ''
-    try {
-      rawParse = await askGemini('gemini-2.5-pro', [
-        { role: 'system', content: PARSER_SYSTEM_PROMPT },
-        { role: 'user', content: command }
-      ], 0.0)
-    } catch (err) {
-      try {
-        rawParse = await askGemini('gemini-1.5-flash', [
-          { role: 'system', content: PARSER_SYSTEM_PROMPT },
-          { role: 'user', content: command }
-        ], 0.0)
-      } catch (err2) {
-        console.error('Parser error (both models):', err2)
-      }
-    }
-
+    // Parse command - try AI first, fallback to pattern matching
     let parsedCommand
+    
     try {
-      parsedCommand = JSON.parse(rawParse)
-    } catch {
-      const stricter = PARSER_SYSTEM_PROMPT +
-        '\nIMPORTANT: If you cannot extract clear action/data, output {"action":"general","data":{"query":"' +
-        command.replace(/"/g, '\\"') + '"}}'
-      try {
-        const raw2 = await askGemini('gemini-1.5-flash', [
-          { role: 'system', content: stricter },
-          { role: 'user', content: command }
-        ], 0.0)
-        parsedCommand = JSON.parse(raw2)
-      } catch {
-        parsedCommand = { action: 'general', data: { query: command } }
+      console.log('Trying AI parser...')
+      const parserPrompt = `Parse this command into JSON. Return only: {"action": "email|calendar|summarize|general", "data": {...}}
+
+Examples:
+- "send email to john@example.com about meeting" → {"action": "email", "data": {"to": "john@example.com", "subject": "About meeting", "body": "Hi,\n\nI wanted to reach out about the meeting.\n\nBest regards"}}
+- "schedule meeting tomorrow" → {"action": "calendar", "data": {"summary": "Meeting"}}
+- "summarize emails" → {"action": "summarize", "data": {}}
+- "what's the weather" → {"action": "general", "data": {"query": "what's the weather"}}
+
+Command: ${command}`
+
+      const parseResult = await tryGeminiWithFallbacks(parserPrompt, true)
+      
+      // Extract JSON from response
+      const jsonMatch = parseResult.match(/\{.*\}/s)
+      if (jsonMatch) {
+        parsedCommand = JSON.parse(jsonMatch[0])
+        console.log('AI parser succeeded:', parsedCommand)
+      } else {
+        throw new Error('No JSON found in AI response')
       }
+    } catch (parseError) {
+      console.log('AI parser failed, using pattern matching fallback')
+      parsedCommand = parseCommandFallback(command)
+      console.log('Fallback parser result:', parsedCommand)
     }
 
-    if (!parsedCommand || typeof parsedCommand.action !== 'string') {
+    if (!parsedCommand || !parsedCommand.action) {
       parsedCommand = { action: 'general', data: { query: command } }
     }
 
-    // --- 2) Handle actions ---
+    // Handle actions
     switch (parsedCommand.action) {
       case 'email': {
         const data = parsedCommand.data || {}
-        const to = data.to || ''
-        const subject = data.subject || ''
-        const body = data.body || ''
-
-        if (!to) {
-          return NextResponse.json({ error: 'Email "to" address missing. Please specify recipient.' }, { status: 400 })
-        }
-
-        if (!subject || !body) {
-          try {
-            const fillPrompt = `You are an assistant that fills missing email fields. Output ONLY JSON: {"subject":"...", "body":"..."}.
-User command: ${command}
-If you cannot infer subject or body, put empty strings.`
-            let fillRaw = ''
-            try {
-              fillRaw = await askGemini('gemini-2.5-pro', [
-                { role: 'system', content: fillPrompt },
-                { role: 'user', content: command }
-              ], 0.0)
-            } catch {
-              fillRaw = await askGemini('gemini-1.5-flash', [
-                { role: 'system', content: fillPrompt },
-                { role: 'user', content: command }
-              ], 0.0)
-            }
-            const fillObj = JSON.parse(fillRaw || '{}')
-            if (!subject) parsedCommand.data.subject = fillObj.subject || ''
-            if (!body) parsedCommand.data.body = fillObj.body || ''
-          } catch {}
-        }
-
-        const finalTo = parsedCommand.data.to
-        const finalSubject = parsedCommand.data.subject
-        const finalBody = parsedCommand.data.body
-
-        if (!finalTo || !finalSubject || !finalBody) {
-          return NextResponse.json({
-            error: 'Unable to extract all email fields (to/subject/body). Please clarify the command.'
+        
+        if (!data.to) {
+          return NextResponse.json({ 
+            error: 'Please specify the email recipient (to address). Example: "send email to john@example.com about the project"' 
           }, { status: 400 })
         }
+
+        if (!data.subject) {
+          data.subject = 'Message from AI Assistant'
+        }
+
+        if (!data.body) {
+          data.body = 'Hello,\n\nThis message was sent via AI Assistant.\n\nBest regards'
+        }
+
+        console.log('Sending email to:', data.to, 'subject:', data.subject)
 
         const sendRes = await fetch(`${baseUrl}/api/gmail/send`, {
           method: 'POST',
@@ -172,36 +203,44 @@ If you cannot infer subject or body, put empty strings.`
             'Authorization': `Bearer ${session.accessToken}`
           },
           body: JSON.stringify({
-            to: finalTo,
-            subject: finalSubject,
-            body: finalBody
+            to: data.to,
+            subject: data.subject,
+            body: data.body
           })
         })
 
+        const sendData = await sendRes.json()
+        
         if (!sendRes.ok) {
-          const errJson = await sendRes.json().catch(() => ({ error: 'send failed' }))
-          return NextResponse.json({ error: errJson.error || 'Failed to send email' }, { status: sendRes.status })
+          console.error('Email send failed:', sendData)
+          return NextResponse.json({ 
+            error: `Failed to send email: ${sendData.error || 'Unknown error'}` 
+          }, { status: sendRes.status })
         }
 
-        const sendJson = await sendRes.json()
-        return NextResponse.json({ result: sendJson.message })
+        return NextResponse.json({ result: sendData.message })
       }
 
       case 'calendar': {
         const data = parsedCommand.data || {}
+        
         if (!data.summary) {
-          return NextResponse.json({ error: 'Calendar event missing "summary".' }, { status: 400 })
+          data.summary = 'Meeting'
         }
 
+        // Set default time if not provided
         if (!data.startTime) {
           const tomorrow = new Date()
           tomorrow.setDate(tomorrow.getDate() + 1)
           tomorrow.setHours(14, 0, 0, 0)
           data.startTime = tomorrow.toISOString()
+          
           const endTime = new Date(tomorrow)
           endTime.setHours(15, 0, 0, 0)
           data.endTime = endTime.toISOString()
         }
+
+        console.log('Creating calendar event:', data.summary)
 
         const calendarRes = await fetch(`${baseUrl}/api/calendar`, {
           method: 'POST',
@@ -212,16 +251,21 @@ If you cannot infer subject or body, put empty strings.`
           body: JSON.stringify(data)
         })
 
+        const calendarData = await calendarRes.json()
+        
         if (!calendarRes.ok) {
-          const errJson = await calendarRes.json().catch(() => ({ error: 'calendar creation failed' }))
-          return NextResponse.json({ error: errJson.error || 'Failed to create event' }, { status: calendarRes.status })
+          console.error('Calendar creation failed:', calendarData)
+          return NextResponse.json({ 
+            error: `Failed to create calendar event: ${calendarData.error || 'Unknown error'}` 
+          }, { status: calendarRes.status })
         }
 
-        const calendarJson = await calendarRes.json()
-        return NextResponse.json({ result: calendarJson.message })
+        return NextResponse.json({ result: calendarData.message })
       }
 
       case 'summarize': {
+        console.log('Summarizing emails...')
+        
         const sumRes = await fetch(`${baseUrl}/api/summarize`, {
           method: 'GET',
           headers: {
@@ -229,36 +273,34 @@ If you cannot infer subject or body, put empty strings.`
           }
         })
 
+        const sumData = await sumRes.json()
+        
         if (!sumRes.ok) {
-          const errJson = await sumRes.json().catch(() => ({ error: 'summarize failed' }))
-          return NextResponse.json({ error: errJson.error || 'Failed to summarize emails' }, { status: sumRes.status })
+          console.error('Summarize failed:', sumData)
+          return NextResponse.json({ 
+            error: `Failed to summarize emails: ${sumData.error || 'Unknown error'}` 
+          }, { status: sumRes.status })
         }
 
-        const sumJson = await sumRes.json()
-        return NextResponse.json({ result: sumJson.summary })
+        return NextResponse.json({ result: sumData.summary })
       }
 
       case 'general':
       default: {
-        let replyText = ''
+        console.log('Handling general query:', command)
+        
         try {
-          try {
-            replyText = await askGemini('gemini-2.5-pro', [
-              { role: 'system', content: GENERAL_SYSTEM_PROMPT },
-              { role: 'user', content: command }
-            ], 0.3)
-          } catch {
-            replyText = await askGemini('gemini-1.5-flash', [
-              { role: 'system', content: GENERAL_SYSTEM_PROMPT },
-              { role: 'user', content: command }
-            ], 0.35)
-          }
+          const generalPrompt = `Answer this question helpfully and informatively. Use plain text only - NO markdown formatting like **bold** or *italic*. Use CAPITAL LETTERS for emphasis if needed.
+
+Question: ${command}`
+
+          const replyText = await tryGeminiWithFallbacks(generalPrompt, false)
+          return NextResponse.json({ result: replyText })
         } catch (err) {
           console.error('General reply error:', err)
-          replyText = 'Sorry — I could not generate a reply right now.'
+          const fallbackResponse = generateSimpleResponse(command)
+          return NextResponse.json({ result: fallbackResponse })
         }
-
-        return NextResponse.json({ result: replyText })
       }
     }
   } catch (error) {

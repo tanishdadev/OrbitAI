@@ -91,27 +91,51 @@ export default function Dashboard() {
 		setResponses([]);
 	};
 
+	// Enhanced text formatting with proper markdown rendering
 	const formatText = (text) => {
-		// Convert plain text formatting to HTML
+		if (!text) return []
+		
 		return text
 			.split('\n')
 			.map(line => line.trim())
 			.filter(line => line.length > 0)
 			.map((line, index) => {
+				// Convert **bold** to actual bold
+				const boldFormatted = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+				
+				// Convert *italic* to actual italic
+				const italicFormatted = boldFormatted.replace(/\*(.*?)\*/g, '<em>$1</em>')
+				
 				// Handle different types of content
 				if (line.startsWith('•') || line.startsWith('-') || line.startsWith('*')) {
-					return <li key={index} className="ml-4">{line.substring(1).trim()}</li>;
+					const cleanLine = line.substring(1).trim()
+					const formatted = cleanLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+					return <li key={index} className="ml-4 mb-1" dangerouslySetInnerHTML={{ __html: formatted }}></li>
 				}
+				
 				if (line.match(/^\d+\./)) {
-					return <li key={index} className="ml-4 list-decimal">{line.replace(/^\d+\./, '').trim()}</li>;
+					const cleanLine = line.replace(/^\d+\./, '').trim()
+					const formatted = cleanLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+					return <li key={index} className="ml-4 list-decimal mb-1" dangerouslySetInnerHTML={{ __html: formatted }}></li>
 				}
+				
 				if (line.includes(':') && line.length < 100) {
 					const [label, ...rest] = line.split(':');
 					if (rest.length > 0) {
-						return <p key={index} className="font-medium"><span className="text-blue-600">{label}:</span> {rest.join(':').trim()}</p>;
+						const formattedLabel = label.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+						const formattedRest = rest.join(':').trim().replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+						return (
+							<p key={index} className="font-medium mb-2">
+								<span className="text-blue-600" dangerouslySetInnerHTML={{ __html: formattedLabel }}></span>: 
+								<span dangerouslySetInnerHTML={{ __html: ` ${formattedRest}` }}></span>
+							</p>
+						)
 					}
 				}
-				return <p key={index} className="leading-relaxed">{line}</p>;
+				
+				// Regular paragraph with markdown support
+				const formatted = italicFormatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+				return <p key={index} className="leading-relaxed mb-2" dangerouslySetInnerHTML={{ __html: formatted }}></p>
 			});
 	};
 
@@ -164,7 +188,7 @@ export default function Dashboard() {
 
 			{/* Main Content */}
 			<main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-				{/* Welcome Section */}
+				{/* Welcome Section - Only show when no messages */}
 				{responses.length === 0 && (
 					<div className="text-center mb-12">
 						<div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl mb-6">
@@ -302,32 +326,37 @@ export default function Dashboard() {
 					</div>
 				</div>
 
-				{/* Quick Actions */}
-				{responses.length === 0 && (
-					<div className="mt-8 flex flex-wrap gap-3 justify-center">
-						<button
-							onClick={() => handleCommand("Summarize my unread emails")}
-							disabled={isProcessing}
-							className="bg-white/60 hover:bg-white/80 border border-white/50 text-gray-700 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 backdrop-blur-sm hover:shadow-md disabled:opacity-50"
-						>
-							📧 Check emails
-						</button>
-						<button
-							onClick={() => handleCommand("Schedule a team meeting tomorrow")}
-							disabled={isProcessing}
-							className="bg-white/60 hover:bg-white/80 border border-white/50 text-gray-700 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 backdrop-blur-sm hover:shadow-md disabled:opacity-50"
-						>
-							📅 Schedule meeting
-						</button>
-						<button
-							onClick={() => handleCommand("What's the weather like today?")}
-							disabled={isProcessing}
-							className="bg-white/60 hover:bg-white/80 border border-white/50 text-gray-700 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 backdrop-blur-sm hover:shadow-md disabled:opacity-50"
-						>
-							🌤️ Weather
-						</button>
-					</div>
-				)}
+				{/* Quick Actions - ALWAYS VISIBLE */}
+				<div className="mt-8 flex flex-wrap gap-3 justify-center">
+					<button
+						onClick={() => handleCommand("Summarize my unread emails")}
+						disabled={isProcessing}
+						className="bg-white/60 hover:bg-white/80 border border-white/50 text-gray-700 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 backdrop-blur-sm hover:shadow-md disabled:opacity-50"
+					>
+						📧 Check emails
+					</button>
+					<button
+						onClick={() => handleCommand("Schedule a team meeting tomorrow")}
+						disabled={isProcessing}
+						className="bg-white/60 hover:bg-white/80 border border-white/50 text-gray-700 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 backdrop-blur-sm hover:shadow-md disabled:opacity-50"
+					>
+						📅 Schedule meeting
+					</button>
+					<button
+						onClick={() => handleCommand("What's the weather like today?")}
+						disabled={isProcessing}
+						className="bg-white/60 hover:bg-white/80 border border-white/50 text-gray-700 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 backdrop-blur-sm hover:shadow-md disabled:opacity-50"
+					>
+						🌤️ Weather
+					</button>
+					<button
+						onClick={() => handleCommand("Send email to test@example.com about project update")}
+						disabled={isProcessing}
+						className="bg-white/60 hover:bg-white/80 border border-white/50 text-gray-700 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 backdrop-blur-sm hover:shadow-md disabled:opacity-50"
+					>
+						✉️ Send test email
+					</button>
+				</div>
 			</main>
 		</div>
 	);
