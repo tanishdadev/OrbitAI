@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
-import { authOptions } from '../../../../../lib/auth'
 import { getGoogleClient } from '../../../../../lib/google-client'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
@@ -8,34 +7,27 @@ const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
 export async function GET(request) {
   try {
-    console.log('Gmail route called')
+    console.log('Gmail summarize route called')
     
-    // Use getToken instead of getServerSession - this is more reliable in App Router
+    // Use getToken - this is the correct way in App Router API routes
     const token = await getToken({ 
       req: request, 
-      secret: process.env.NEXTAUTH_SECRET,
-      secureCookie: process.env.NODE_ENV === 'production'
+      secret: process.env.NEXTAUTH_SECRET
     })
     
     console.log('Token:', token ? 'Found' : 'Not found')
     console.log('Token email:', token?.email)
     console.log('Access token exists:', !!token?.accessToken)
     
-    if (!token?.email) {
-      console.log('No token or email found')
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
-
-    // Use the access token from the token
-    const accessToken = token.accessToken
-    
-    if (!accessToken) {
-      console.log('No access token in token')
-      return NextResponse.json({ error: 'No access token available. Please sign out and sign back in.' }, { status: 401 })
+    if (!token?.accessToken) {
+      console.log('No access token found')
+      return NextResponse.json({ 
+        error: 'Unauthorized - Please sign in again' 
+      }, { status: 401 })
     }
 
     console.log('Access token found, initializing Gmail client')
-    const { gmail } = getGoogleClient(accessToken)
+    const { gmail } = getGoogleClient(token.accessToken)
 
     // Fetch only unread emails from Primary inbox
     const response = await gmail.users.messages.list({

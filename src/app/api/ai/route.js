@@ -21,19 +21,38 @@ function parseCommandFallback(command) {
     }
   }
   
-  // Email patterns
+  // Enhanced email patterns
   const emailRegex = /[\w.-]+@[\w.-]+\.\w+/
   const emailMatch = command.match(emailRegex)
   
-  if ((lowerCommand.includes('email') || lowerCommand.includes('send')) && emailMatch) {
-    let subject = 'Message from AI Assistant'
-    let body = 'Hello, this message was sent via AI Assistant.'
+  if ((lowerCommand.includes('email') || lowerCommand.includes('send') || lowerCommand.includes('mail')) && emailMatch) {
+    let subject = null
+    let body = null
     
-    if (lowerCommand.includes('about')) {
-      const aboutIndex = lowerCommand.indexOf('about')
-      const afterAbout = command.substring(aboutIndex + 5).trim()
-      subject = `About ${afterAbout}`
-      body = `Hi,\n\nI wanted to reach out about ${afterAbout}.\n\nBest regards`
+    // Try to extract subject from various patterns
+    const subjectPatterns = [
+      /subject[:\s]+([^,\n]+)/i,
+      /with subject[:\s]+([^,\n]+)/i,
+      /titled[:\s]+([^,\n]+)/i,
+      /about[:\s]+([^,\n]+)/i,
+      /regarding[:\s]+([^,\n]+)/i
+    ]
+    
+    for (const pattern of subjectPatterns) {
+      const match = command.match(pattern)
+      if (match && match[1]) {
+        subject = match[1].trim().replace(/['"]/g, '')
+        break
+      }
+    }
+    
+    // If no explicit subject found, let AI generate it
+    if (!subject) {
+      // Extract topic after "about", "regarding", "on", etc.
+      const topicMatch = command.match(/(?:about|regarding|on|for|concerning)\s+([^,\n.]+)/i)
+      if (topicMatch) {
+        subject = null // Let AI generate based on topic
+      }
     }
     
     return {
@@ -41,7 +60,7 @@ function parseCommandFallback(command) {
       data: {
         to: emailMatch[0],
         subject: subject,
-        body: body
+        body: body // Let AI generate
       }
     }
   }
@@ -172,6 +191,12 @@ export async function POST(req) {
 
 Parse this command into JSON format. Return ONLY the JSON, nothing else.
 
+For email commands:
+- Extract recipient email address
+- Extract subject if explicitly mentioned (with words like "subject:", "titled:", "about:", "regarding:")
+- If subject is not explicitly mentioned, set it to null (the email system will generate it using AI)
+- Set body to null (the email system will generate appropriate content using AI)
+
 For calendar events:
 - Extract the EXACT date and time the user wants
 - Convert to ISO 8601 format (YYYY-MM-DDTHH:MM:SS)
@@ -181,7 +206,11 @@ For calendar events:
 - Extract meeting title/summary accurately
 
 Examples:
-"send email to john@example.com about meeting" → {"action": "email", "data": {"to": "john@example.com", "subject": "About meeting", "body": "Hi,\\n\\nI wanted to reach out about the meeting.\\n\\nBest regards"}}
+"send email to john@example.com about quantum mechanics" → {"action": "email", "data": {"to": "john@example.com", "subject": null, "body": null}}
+
+"email sarah@company.com with subject 'Project Update' about our progress" → {"action": "email", "data": {"to": "sarah@company.com", "subject": "Project Update", "body": null}}
+
+"send email to investor@fund.com pitching our new AI startup" → {"action": "email", "data": {"to": "investor@fund.com", "subject": null, "body": null}}
 
 "schedule meeting called Test Meeting for October 5th, 2025 at 5:00 PM" → {"action": "calendar", "data": {"summary": "Test Meeting", "startTime": "2025-10-05T17:00:00", "endTime": "2025-10-05T18:00:00", "timeZone": "Asia/Calcutta"}}
 
@@ -189,7 +218,7 @@ Examples:
 
 "summarize my emails" → {"action": "summarize", "data": {}}
 
-"what's the weather like" → {"action": "general", "data": {"query": "what's the weather like"}}
+"explain machine learning" → {"action": "general", "data": {"query": "explain machine learning"}}
 
 Be very careful with date parsing:
 - "5th October" = October 5th
@@ -239,15 +268,7 @@ User command: "${command}"`
           }, { status: 400 })
         }
 
-        if (!data.subject) {
-          data.subject = 'Message from AI Assistant'
-        }
-
-        if (!data.body) {
-          data.body = 'Hello,\n\nThis message was sent via AI Assistant.\n\nBest regards'
-        }
-
-        console.log('Sending email to:', data.to, 'subject:', data.subject)
+        console.log('Sending email to:', data.to, 'subject:', data.subject || 'AI Generated')
 
         const sendRes = await fetch(`${baseUrl}/api/gmail/send`, {
           method: 'POST',
@@ -258,7 +279,8 @@ User command: "${command}"`
           body: JSON.stringify({
             to: data.to,
             subject: data.subject,
-            body: data.body
+            body: data.body,
+            originalCommand: command  // Pass original command for AI generation
           })
         })
 
