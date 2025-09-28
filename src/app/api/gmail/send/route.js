@@ -89,6 +89,7 @@ GUIDELINES:
 - If it's a pitch/proposal, include compelling details and value propositions
 - If it's a meeting request, include relevant scheduling details
 - Use proper email formatting with greeting and professional closing
+- Make it engaging and informative
 
 Format your response EXACTLY like this:
 SUBJECT: [Your generated subject line]
@@ -97,8 +98,8 @@ BODY:
 [Your generated email body with proper greeting and closing]
 
 Example topics and how to handle them:
-- "explain quantum mechanics" → Educational email with detailed explanation
-- "pitch our new app to investors" → Professional pitch with features, market opportunity, etc.
+- "explain quantum mechanics" → Educational email with detailed explanation of quantum mechanics principles
+- "pitch our new app to investors" → Professional pitch with features, market opportunity, competitive advantage
 - "ask for a meeting about project updates" → Meeting request with context and proposed times
 - "thank them for the interview" → Professional thank you with next steps
 
@@ -125,7 +126,6 @@ Generate the email now:`.trim()
         
         // Fallback generation based on original command
         if (needsSubject) {
-          // Generate basic subject from command
           let topicMatch = originalCommand.match(/about (.+)|regarding (.+)|for (.+)|on (.+)/i)
           if (topicMatch) {
             const topic = (topicMatch[1] || topicMatch[2] || topicMatch[3] || topicMatch[4]).trim()
@@ -136,7 +136,6 @@ Generate the email now:`.trim()
         }
         
         if (needsBody) {
-          // Generate basic body from command
           let topic = 'this matter'
           let topicMatch = originalCommand.match(/about (.+)|regarding (.+)|explain (.+)|discuss (.+)/i)
           if (topicMatch) {
@@ -199,7 +198,7 @@ Best regards`
     })
 
     return NextResponse.json({ 
-      message: `✅ Email sent successfully to ${to}\n📧 Subject: "${subject}"\n📝 Generated ${needsSubject || needsBody ? 'with AI assistance' : 'with provided content'}`,
+      message: `✅ Email sent successfully to ${to}\n📧 Subject: "${subject}"\n📝 ${needsSubject || needsBody ? 'Generated with AI assistance' : 'Sent with provided content'}`,
       messageId: result.data.id,
       generatedSubject: needsSubject,
       generatedBody: needsBody
@@ -207,7 +206,6 @@ Best regards`
   } catch (error) {
     console.error('Gmail Send Error:', error)
     
-    // Handle specific Gmail API errors
     if (error.code === 401 || error.status === 401) {
       return NextResponse.json({ 
         error: 'Gmail authentication failed. Please re-authenticate with Google.' 

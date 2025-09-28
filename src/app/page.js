@@ -28,10 +28,10 @@ export default function Home() {
 		<main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gradient-to-b from-blue-50 to-white">
 			<div className="text-center">
 				<h1 className="text-5xl font-bold mb-8 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-					AI Assistant
+					Orbit AI
 				</h1>
 				<p className="text-xl mb-8 text-gray-600">
-					Your personal AI assistant with Google integration
+					Your one stop solution for automating workflows
 				</p>
 				<button
 					onClick={() =>

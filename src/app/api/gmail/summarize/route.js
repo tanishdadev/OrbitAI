@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
+import { authOptions } from '../../../../../lib/auth'
 import { getGoogleClient } from '../../../../../lib/google-client'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
@@ -9,25 +10,40 @@ export async function GET(request) {
   try {
     console.log('Gmail summarize route called')
     
-    // Use getToken - this is the correct way in App Router API routes
-    const token = await getToken({ 
-      req: request, 
-      secret: process.env.NEXTAUTH_SECRET
-    })
+    // Check for authorization header first (when called from api/ai)
+    const authHeader = request.headers.get('Authorization')
+    let accessToken = null
     
-    console.log('Token:', token ? 'Found' : 'Not found')
-    console.log('Token email:', token?.email)
-    console.log('Access token exists:', !!token?.accessToken)
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      // Called from another API route with token in header
+      accessToken = authHeader.replace('Bearer ', '')
+      console.log('Using access token from Authorization header')
+    } else {
+      // Called directly, try to get session
+      const token = await getToken({ 
+        req: request, 
+        secret: process.env.NEXTAUTH_SECRET,
+        secureCookie: process.env.NODE_ENV === 'production'
+      })
+      
+      console.log('Token:', token ? 'Found' : 'Not found')
+      console.log('Token email:', token?.email)
+      
+      if (!token?.email) {
+        console.log('No token or email found')
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      }
+      
+      accessToken = token.accessToken
+    }
     
-    if (!token?.accessToken) {
-      console.log('No access token found')
-      return NextResponse.json({ 
-        error: 'Unauthorized - Please sign in again' 
-      }, { status: 401 })
+    if (!accessToken) {
+      console.log('No access token available')
+      return NextResponse.json({ error: 'No access token available. Please sign out and sign back in.' }, { status: 401 })
     }
 
     console.log('Access token found, initializing Gmail client')
-    const { gmail } = getGoogleClient(token.accessToken)
+    const { gmail } = getGoogleClient(accessToken)
 
     // Fetch only unread emails from Primary inbox
     const response = await gmail.users.messages.list({

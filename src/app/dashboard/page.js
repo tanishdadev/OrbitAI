@@ -184,15 +184,12 @@ export default function Dashboard() {
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 					<div className="flex justify-between items-center">
 						<div className="flex items-center space-x-3">
-							<div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-								<span className="text-white font-bold text-sm">AI</span>
-							</div>
 							<h1 className={`text-xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
 								darkMode 
 									? 'from-gray-100 to-gray-300' 
 									: 'from-gray-900 to-gray-700'
 							}`}>
-								AI Assistant
+								OrbitAI
 							</h1>
 						</div>
 						

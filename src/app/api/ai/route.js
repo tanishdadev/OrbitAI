@@ -33,9 +33,7 @@ function parseCommandFallback(command) {
     const subjectPatterns = [
       /subject[:\s]+([^,\n]+)/i,
       /with subject[:\s]+([^,\n]+)/i,
-      /titled[:\s]+([^,\n]+)/i,
-      /about[:\s]+([^,\n]+)/i,
-      /regarding[:\s]+([^,\n]+)/i
+      /titled[:\s]+([^,\n]+)/i
     ]
     
     for (const pattern of subjectPatterns) {
@@ -46,21 +44,12 @@ function parseCommandFallback(command) {
       }
     }
     
-    // If no explicit subject found, let AI generate it
-    if (!subject) {
-      // Extract topic after "about", "regarding", "on", etc.
-      const topicMatch = command.match(/(?:about|regarding|on|for|concerning)\s+([^,\n.]+)/i)
-      if (topicMatch) {
-        subject = null // Let AI generate based on topic
-      }
-    }
-    
     return {
       action: 'email',
       data: {
         to: emailMatch[0],
         subject: subject,
-        body: body // Let AI generate
+        body: body
       }
     }
   }
@@ -193,9 +182,9 @@ Parse this command into JSON format. Return ONLY the JSON, nothing else.
 
 For email commands:
 - Extract recipient email address
-- Extract subject if explicitly mentioned (with words like "subject:", "titled:", "about:", "regarding:")
-- If subject is not explicitly mentioned, set it to null (the email system will generate it using AI)
-- Set body to null (the email system will generate appropriate content using AI)
+- Extract subject if explicitly mentioned with "subject:", "titled:", etc.
+- If no explicit subject, set to null (AI will generate)
+- Set body to null (AI will generate detailed content)
 
 For calendar events:
 - Extract the EXACT date and time the user wants
@@ -280,7 +269,7 @@ User command: "${command}"`
             to: data.to,
             subject: data.subject,
             body: data.body,
-            originalCommand: command  // Pass original command for AI generation
+            originalCommand: command
           })
         })
 
