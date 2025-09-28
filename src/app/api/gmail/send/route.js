@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getGoogleClient } from '@/app/lib/google-client'
+import { getGoogleClient } from '../../../../../lib/google-client'
 
 export async function POST(req) {
   try {

@@ -12,12 +12,20 @@ const getBaseUrl = () =>
 function parseCommandFallback(command) {
   const lowerCommand = command.toLowerCase()
   
+  // Check for name/identity questions
+  if (lowerCommand.includes('what is your name') || lowerCommand.includes("what's your name") || 
+      lowerCommand.includes('who are you') || lowerCommand.includes('your name')) {
+    return {
+      action: 'general',
+      data: { query: command, isIdentityQuestion: true }
+    }
+  }
+  
   // Email patterns
   const emailRegex = /[\w.-]+@[\w.-]+\.\w+/
   const emailMatch = command.match(emailRegex)
   
   if ((lowerCommand.includes('email') || lowerCommand.includes('send')) && emailMatch) {
-    // Extract subject and body from command
     let subject = 'Message from AI Assistant'
     let body = 'Hello, this message was sent via AI Assistant.'
     
@@ -43,7 +51,7 @@ function parseCommandFallback(command) {
     return {
       action: 'calendar',
       data: {
-        summary: lowerCommand.includes('meeting') ? 'Team Meeting' : 'Scheduled Event',
+        summary: 'Meeting',
         description: 'Event created via AI Assistant'
       }
     }
@@ -63,8 +71,14 @@ function parseCommandFallback(command) {
 function generateSimpleResponse(command) {
   const lowerCommand = command.toLowerCase()
   
+  // Handle identity questions
+  if (lowerCommand.includes('what is your name') || lowerCommand.includes("what's your name") || 
+      lowerCommand.includes('who are you') || lowerCommand.includes('your name')) {
+    return 'I am OrbitAI, your intelligent assistant.'
+  }
+  
   if (lowerCommand.includes('weather')) {
-    return 'I apologize, but I cannot access real-time weather data. Please check a weather app or website for current conditions.'
+    return 'I cannot access real-time weather data. Please check a weather app or website for current conditions.'
   }
   
   if (lowerCommand.includes('time')) {
@@ -76,53 +90,56 @@ function generateSimpleResponse(command) {
   }
   
   if (lowerCommand.includes('hello') || lowerCommand.includes('hi')) {
-    return 'Hello! How can I help you today? I can assist with emails, calendar events, and general questions.'
+    return 'Hello! I can help you with emails, calendar events, and general questions.'
   }
   
-  return 'I apologize, but I am having trouble connecting to AI services right now. Please try again in a moment, or try a more specific command like "send email to someone@example.com" or "schedule a meeting".'
+  return 'I am having trouble connecting to AI services right now. Please try again in a moment.'
 }
 
-// Try Gemini with multiple fallbacks - FIXED MODEL NAMES
+// Try Gemini with multiple fallbacks
 async function tryGeminiWithFallbacks(prompt, isParser = false) {
-  const models = ['gemini-1.5-flash', 'gemini-1.5-pro'] // CORRECT NAMES
-  
-  for (const model of models) {
+  const availableModels = [
+    'gemini-2.5-pro',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite'
+  ];
+
+  for (const model of availableModels) {
     try {
-      console.log(`Attempting ${model}...`)
+      console.log(`Attempting ${model}...`);
       const geminiModel = gemini.getGenerativeModel({
         model: model,
         generationConfig: { 
-          temperature: isParser ? 0.0 : 0.3,
+          temperature: isParser ? 0.1 : 0.3,
           topK: 40,
           topP: 0.95 
         },
-      })
+      });
 
-      const result = await geminiModel.generateContent(prompt)
-      const text = result.response.text()
-      console.log(`${model} succeeded`)
-      return text
+      const result = await geminiModel.generateContent(prompt);
+      const text = result.response.text();
+      console.log(`${model} succeeded`);
+      return text;
     } catch (error) {
-      console.error(`${model} failed:`, error.status, error.message)
+      console.error(`${model} failed:`, error.status, error.message);
       
-      // Don't continue if it's an auth error
       if (error.status === 401 || error.status === 403) {
-        throw new Error('AI service authentication failed. Please check API key.')
+        throw new Error('AI service authentication failed. Please check API key.');
       }
-      
-      // Continue to next model for 503, 429, 500 errors
+
       if (error.status === 503 || error.status === 429 || error.status === 500) {
-        console.log(`${model} temporarily unavailable, trying next...`)
-        continue
+        console.log(`${model} temporarily unavailable, trying next...`);
+        continue;
       }
-      
-      // For other errors, continue but log them
-      console.log(`${model} failed with ${error.status}, trying next...`)
-      continue
+
+      console.log(`${model} failed with ${error.status}, trying next...`);
+      continue;
     }
   }
-  
-  throw new Error('All AI models are currently unavailable')
+
+  throw new Error('All AI models are currently unavailable');
 }
 
 export async function POST(req) {
@@ -140,33 +157,69 @@ export async function POST(req) {
     const baseUrl = getBaseUrl()
     console.log('Processing command:', command)
 
+    // Get current date/time context for AI
+    const now = new Date()
+    const currentDateTime = now.toISOString()
+    const currentLocalTime = now.toLocaleString('en-IN', { timeZone: 'Asia/Calcutta' })
+    const userTimeZone = 'Asia/Calcutta'
+
     // Parse command - try AI first, fallback to pattern matching
     let parsedCommand
     
     try {
-      console.log('Trying AI parser...')
-      const parserPrompt = `Parse this command into JSON. Return only: {"action": "email|calendar|summarize|general", "data": {...}}
+      console.log('Trying AI parser with enhanced context...')
+      const parserPrompt = `You are OrbitAI, a smart assistant that parses user commands. Today's date is ${currentDateTime} (${currentLocalTime} in Asia/Calcutta timezone).
+
+Parse this command into JSON format. Return ONLY the JSON, nothing else.
+
+For calendar events:
+- Extract the EXACT date and time the user wants
+- Convert to ISO 8601 format (YYYY-MM-DDTHH:MM:SS)
+- If year not specified, use 2025 (current context)
+- Default to Asia/Calcutta timezone
+- If no duration specified, make it 1 hour
+- Extract meeting title/summary accurately
 
 Examples:
-- "send email to john@example.com about meeting" → {"action": "email", "data": {"to": "john@example.com", "subject": "About meeting", "body": "Hi,\n\nI wanted to reach out about the meeting.\n\nBest regards"}}
-- "schedule meeting tomorrow" → {"action": "calendar", "data": {"summary": "Meeting"}}
-- "summarize emails" → {"action": "summarize", "data": {}}
-- "what's the weather" → {"action": "general", "data": {"query": "what's the weather"}}
+"send email to john@example.com about meeting" → {"action": "email", "data": {"to": "john@example.com", "subject": "About meeting", "body": "Hi,\\n\\nI wanted to reach out about the meeting.\\n\\nBest regards"}}
 
-Command: ${command}`
+"schedule meeting called Test Meeting for October 5th, 2025 at 5:00 PM" → {"action": "calendar", "data": {"summary": "Test Meeting", "startTime": "2025-10-05T17:00:00", "endTime": "2025-10-05T18:00:00", "timeZone": "Asia/Calcutta"}}
+
+"what's your name" → {"action": "general", "data": {"query": "what's your name", "isIdentityQuestion": true}}
+
+"summarize my emails" → {"action": "summarize", "data": {}}
+
+"what's the weather like" → {"action": "general", "data": {"query": "what's the weather like"}}
+
+Be very careful with date parsing:
+- "5th October" = October 5th
+- "October 5th" = October 5th  
+- "tomorrow" = ${new Date(now.getTime() + 24*60*60*1000).toISOString().split('T')[0]}
+- "next week" = add 7 days from today
+- "5 PM" = 17:00 in 24-hour format
+- "5:30 PM" = 17:30 in 24-hour format
+
+User command: "${command}"`
 
       const parseResult = await tryGeminiWithFallbacks(parserPrompt, true)
       
+      console.log('Raw AI response:', parseResult)
+      
       // Extract JSON from response
-      const jsonMatch = parseResult.match(/\{.*\}/s)
+      const jsonMatch = parseResult.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         parsedCommand = JSON.parse(jsonMatch[0])
         console.log('AI parser succeeded:', parsedCommand)
+        
+        if (!parsedCommand.action || !parsedCommand.data) {
+          throw new Error('Invalid JSON structure from AI')
+        }
       } else {
         throw new Error('No JSON found in AI response')
       }
     } catch (parseError) {
-      console.log('AI parser failed, using pattern matching fallback')
+      console.log('AI parser failed:', parseError.message)
+      console.log('Using pattern matching fallback')
       parsedCommand = parseCommandFallback(command)
       console.log('Fallback parser result:', parsedCommand)
     }
@@ -224,23 +277,32 @@ Command: ${command}`
       case 'calendar': {
         const data = parsedCommand.data || {}
         
+        console.log('Calendar data from AI:', JSON.stringify(data, null, 2))
+        
         if (!data.summary) {
           data.summary = 'Meeting'
         }
 
-        // Set default time if not provided
-        if (!data.startTime) {
-          const tomorrow = new Date()
-          tomorrow.setDate(tomorrow.getDate() + 1)
-          tomorrow.setHours(14, 0, 0, 0)
-          data.startTime = tomorrow.toISOString()
-          
-          const endTime = new Date(tomorrow)
-          endTime.setHours(15, 0, 0, 0)
-          data.endTime = endTime.toISOString()
+        if (!data.startTime || !data.endTime) {
+          return NextResponse.json({ 
+            error: 'I need more details about when to schedule this meeting. Please specify the date and time. For example: "Schedule meeting for October 5th at 3 PM"' 
+          }, { status: 400 })
         }
 
-        console.log('Creating calendar event:', data.summary)
+        const startDate = new Date(data.startTime)
+        const endDate = new Date(data.endTime)
+        
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          return NextResponse.json({ 
+            error: 'Invalid date/time format detected. Please try again with a clearer date and time.' 
+          }, { status: 400 })
+        }
+
+        if (!data.timeZone) {
+          data.timeZone = 'Asia/Calcutta'
+        }
+
+        console.log('Final calendar data being sent:', JSON.stringify(data, null, 2))
 
         const calendarRes = await fetch(`${baseUrl}/api/calendar`, {
           method: 'POST',
@@ -266,7 +328,7 @@ Command: ${command}`
       case 'summarize': {
         console.log('Summarizing emails...')
         
-        const sumRes = await fetch(`${baseUrl}/api/summarize`, {
+        const sumRes = await fetch(`${baseUrl}/api/gmail/summarize`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${session.accessToken}`
@@ -277,7 +339,7 @@ Command: ${command}`
           const errorText = await sumRes.text()
           console.error('Summarize failed:', errorText)
           return NextResponse.json({ 
-            error: `Failed to summarize emails: API route not found` 
+            error: `Failed to summarize emails. Please check your Gmail permissions.` 
           }, { status: 500 })
         }
 
@@ -289,8 +351,31 @@ Command: ${command}`
       default: {
         console.log('Handling general query:', command)
         
+        // Handle identity questions first
+        if (parsedCommand.data?.isIdentityQuestion || 
+            command.toLowerCase().includes('what is your name') || 
+            command.toLowerCase().includes("what's your name") || 
+            command.toLowerCase().includes('who are you')) {
+          return NextResponse.json({ result: 'I am OrbitAI, your intelligent assistant.' })
+        }
+        
         try {
-          const generalPrompt = `Answer this question helpfully and informatively. Use plain text only - NO markdown formatting like **bold** or *italic*. Use CAPITAL LETTERS for emphasis if needed.
+          const generalPrompt = `You are OrbitAI, an AI that is intelligent and can cater to every need of the user.         
+  GUIDELINES:
+- Be conversational and natural, like a helpful friend
+- Match the user's tone and energy level
+- Be concise for simple questions, detailed only when needed
+- Don't over-explain common words or expressions
+- If someone uses casual language like "damn", respond naturally without lectures
+- Avoid being overly formal or robotic, be natural like a human
+- Give practical and useful answers
+- Don't explain obvious things unless specifically asked
+
+Examples of good responses:
+User: "damn, it's hot today" → "Yeah, it's really hot! Stay hydrated buddy."
+User: "what's 2+2?" → "It's 4."
+User: "explain quantum physics" → [Give a detailed explanation]
+User: "hi" → "Hey! How can I help you?"
 
 Question: ${command}`
 

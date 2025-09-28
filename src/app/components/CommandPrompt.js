@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-export default function CommandPrompt({ onSubmit, isProcessing }) {
+export default function CommandPrompt({ onSubmit, isProcessing, darkMode }) {
   const [command, setCommand] = useState('')
 
   const handleSubmit = (e) => {
@@ -21,7 +21,11 @@ export default function CommandPrompt({ onSubmit, isProcessing }) {
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             placeholder="Type your message here... (e.g., 'Send email to john@example.com', 'Schedule meeting tomorrow')"
-            className="w-full p-4 pr-12 border-0 bg-gray-50 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all duration-200 placeholder-gray-500"
+            className={`w-full p-4 pr-12 border-0 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 ${
+              darkMode 
+                ? 'bg-gray-700 text-gray-100 placeholder-gray-400 focus:bg-gray-600' 
+                : 'bg-gray-50 text-gray-900 placeholder-gray-500 focus:bg-white'
+            }`}
             rows={1}
             disabled={isProcessing}
             style={{ minHeight: '52px', maxHeight: '120px' }}
@@ -43,7 +47,9 @@ export default function CommandPrompt({ onSubmit, isProcessing }) {
             disabled={!command.trim() || isProcessing}
             className={`absolute right-3 bottom-3 w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${
               !command.trim() || isProcessing
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                ? darkMode
+                  ? 'bg-gray-600 text-gray-500 cursor-not-allowed'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
             }`}
           >
@@ -58,7 +64,9 @@ export default function CommandPrompt({ onSubmit, isProcessing }) {
         </div>
       </div>
       
-      <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+      <div className={`flex items-center justify-between mt-2 text-xs ${
+        darkMode ? 'text-gray-400' : 'text-gray-500'
+      }`}>
         <span>Press Enter to send, Shift+Enter for new line</span>
         {isProcessing && (
           <span className="flex items-center gap-1">

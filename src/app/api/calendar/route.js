@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getGoogleClient } from '@/app/lib/google-client'
+import { getGoogleClient } from '../../../../lib/google-client'
 
 export async function POST(req) {
   try {
@@ -8,27 +8,57 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { summary, description, startTime, endTime, attendees } = await req.json()
+    const { summary, description, startTime, endTime, attendees, timeZone } = await req.json()
+    
+    // Debug logging
+    console.log('=== CALENDAR API REQUEST DEBUG ===')
+    console.log('Received data:', { summary, description, startTime, endTime, attendees, timeZone })
+    console.log('Current server time:', new Date().toISOString())
+    console.log('User timezone:', timeZone || 'Not provided')
     
     if (!summary) {
       return NextResponse.json({ 
-        error: 'Event summary is required' 
+        error: 'Event summary is required'
       }, { status: 400 })
     }
 
+    if (!startTime || !endTime) {
+      return NextResponse.json({ 
+        error: 'Both startTime and endTime are required in ISO format (e.g., 2025-10-02T15:00:00)' 
+      }, { status: 400 })
+    }
+
+    const startDateTime = new Date(startTime)
+    const endDateTime = new Date(endTime)
+    
+    console.log('Parsed dates:')
+    console.log('- Start:', startDateTime.toISOString(), '(Local:', startDateTime.toString(), ')')
+    console.log('- End:', endDateTime.toISOString(), '(Local:', endDateTime.toString(), ')')
+
+    if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
+      return NextResponse.json({ 
+        error: 'Invalid date format. Please use ISO 8601 format, e.g., 2025-10-02T15:00:00' 
+      }, { status: 400 })
+    }
+
+    // Get Google client
     const { calendar } = getGoogleClient(accessToken)
 
-    // Create the event object
+    // Use user-provided timezone or fallback to server timezone
+    const tz = timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone
+    
+    console.log('Final timezone being used:', tz)
+
     const event = {
-      summary: summary || 'New Meeting',
+      summary,
       description: description || '',
       start: {
-        dateTime: startTime || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        dateTime: startDateTime.toISOString(),
+        timeZone: tz,
       },
       end: {
-        dateTime: endTime || new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        dateTime: endDateTime.toISOString(),
+        timeZone: tz,
       },
       attendees: attendees?.map(email => ({ email })) || [],
       conferenceData: {
@@ -45,7 +75,11 @@ export async function POST(req) {
         ]
       }
     }
+    
+    console.log('Event object being sent to Google:', JSON.stringify(event, null, 2))
 
+    console.log('Creating calendar event with token:', accessToken.substring(0, 10) + '...')
+    
     const response = await calendar.events.insert({
       calendarId: 'primary',
       requestBody: event,
@@ -56,20 +90,20 @@ export async function POST(req) {
     const meetLink = response.data.hangoutLink || 
                     response.data.conferenceData?.entryPoints?.[0]?.uri
 
-    // Format the response message
-    const startDate = new Date(response.data.start.dateTime)
-    const formattedDate = startDate.toLocaleDateString('en-US', { 
+    const formattedStartDate = new Date(response.data.start.dateTime)
+    const formattedDate = formattedStartDate.toLocaleDateString('en-US', { 
       weekday: 'long', 
       year: 'numeric', 
       month: 'long', 
       day: 'numeric' 
     })
-    const formattedTime = startDate.toLocaleTimeString('en-US', { 
+    const formattedTime = formattedStartDate.toLocaleTimeString('en-US', { 
       hour: 'numeric', 
-      minute: '2-digit' 
+      minute: '2-digit',
+      hour12: true
     })
 
-    let message = `✅ Meeting "${summary}" scheduled for ${formattedDate} at ${formattedTime}.`
+    let message = `✅ Meeting "${summary}" scheduled for ${formattedDate} at ${formattedTime} (${tz}).`
     
     if (meetLink) {
       message += `\n📹 Google Meet link: ${meetLink}`
@@ -86,9 +120,28 @@ export async function POST(req) {
       htmlLink: response.data.htmlLink
     })
   } catch (error) {
-    console.error('Calendar Error:', error)
+    console.error('Calendar Error Details:', {
+      message: error.message,
+      code: error.code,
+      status: error.status,
+      response: error.response?.data
+    })
+    
+    // Handle specific Google API errors
+    if (error.code === 401 || error.status === 401) {
+      return NextResponse.json({ 
+        error: 'Authentication failed. Please re-authenticate with Google.' 
+      }, { status: 401 })
+    }
+    
+    if (error.code === 403 || error.status === 403) {
+      return NextResponse.json({ 
+        error: 'Access denied. Please check your Google Calendar permissions.' 
+      }, { status: 403 })
+    }
+    
     return NextResponse.json({ 
-      error: 'Failed to create calendar event. Please check your permissions and try again.' 
+      error: `Failed to create calendar event: ${error.message}` 
     }, { status: 500 })
   }
 }
