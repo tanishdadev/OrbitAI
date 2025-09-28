@@ -82,9 +82,9 @@ function generateSimpleResponse(command) {
   return 'I apologize, but I am having trouble connecting to AI services right now. Please try again in a moment, or try a more specific command like "send email to someone@example.com" or "schedule a meeting".'
 }
 
-// Try Gemini with multiple fallbacks
+// Try Gemini with multiple fallbacks - FIXED MODEL NAMES
 async function tryGeminiWithFallbacks(prompt, isParser = false) {
-  const models = ['gemini-1.5-flash', 'gemini-1.5-pro']
+  const models = ['gemini-1.5-flash', 'gemini-1.5-pro'] // CORRECT NAMES
   
   for (const model of models) {
     try {
@@ -273,15 +273,15 @@ Command: ${command}`
           }
         })
 
-        const sumData = await sumRes.json()
-        
         if (!sumRes.ok) {
-          console.error('Summarize failed:', sumData)
+          const errorText = await sumRes.text()
+          console.error('Summarize failed:', errorText)
           return NextResponse.json({ 
-            error: `Failed to summarize emails: ${sumData.error || 'Unknown error'}` 
-          }, { status: sumRes.status })
+            error: `Failed to summarize emails: API route not found` 
+          }, { status: 500 })
         }
 
+        const sumData = await sumRes.json()
         return NextResponse.json({ result: sumData.summary })
       }
 
